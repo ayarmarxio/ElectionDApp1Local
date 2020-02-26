@@ -1,3 +1,5 @@
+var capturedFile 
+
 App = {
   web3Provider: null,
   contracts: {},
@@ -7,16 +9,18 @@ App = {
   init: function() {
     return App.initWeb3();
   },
-
+  
   initWeb3: function() {
-    ethereum.enable();
+  
+    ethereum.enable()    
     // TODO: refactor conditional
     if (typeof web3 !== 'undefined') {
       // If a web3 instance is already provided by Meta Mask.
       App.web3Provider = web3.currentProvider;
       console.log("This is my current provider: " + App.web3Provider);
       web3 = new Web3(web3.currentProvider);
-    } else {
+    }    
+    else {
       // Specify default instance if no web3 instance provided
       App.web3Provider = new Web3.providers.HttpProvider('http://localhost:7545');
       web3 = new Web3(App.web3Provider);
@@ -24,10 +28,8 @@ App = {
     return App.initContract();
   },
 
-
   initContract: function() {
     $.getJSON("Election.json", function(election) {
-      console.log("The init contract is running" )
       // Instantiate a new truffle contract from the artifact
       App.contracts.Election = TruffleContract(election);
       // Connect provider to interact with contract
@@ -40,7 +42,6 @@ App = {
     var electionInstance;
     var loader = $("#loader");
     var content = $("#content");
-
     loader.show();
     content.hide();
     
@@ -49,38 +50,24 @@ App = {
       if (err === null) {
         App.account = account;
         $("#accountAddress").html("Your Account: " + account);
-        console.warn("you get the account: " + account)
       }
     });
 
     // Load contract data
     App.contracts.Election.deployed().then(function(instance) {
-      console.log("This is the instance that we pass: " + instance)
       electionInstance = instance;
-      console.log("This is the instance of the contract object: " + electionInstance)
-    
-      return electionInstance.candidatesCount();
+          return electionInstance.candidatesCount();
     }).then(function(candidatesCount) {
       var candidatesResults = $("#candidatesResults");
-      console.log("This is the candidates results : " + candidatesResults)
       candidatesResults.empty();
-
       var candidatesSelect = $('#candidatesSelect');
-      console.log("This is the candidateSelect" + candidatesSelect)
       candidatesSelect.empty();
 
-      console.log("This is candidates count:  " + candidatesCount)
-
       for (var i = 1; i <= candidatesCount; i++) {
-        console.log("This re the candidates count: " + candidatesCount);
         electionInstance.candidates(i).then(function(candidate) {
           var id = candidate[0];
-          console.log("This is the candidate id: " + id);
           var name = candidate[1];
-          console.log("This is the candidate name: " + name);
           var voteCount = candidate[2];
-          console.log("this is the votecount: " + voteCount)
-
           // Render candidate Result
           var candidateTemplate = "<tr><th>" + id + "</th><td>" + name + "</td><td>" + voteCount + "</td></tr>"
           candidatesResults.append(candidateTemplate);
@@ -90,6 +77,7 @@ App = {
         });
       }
       return electionInstance.voters(App.account);
+      // return electionInstance.Voter.hasVoted[App.account]
     }).then(function(hasVoted) {
       // Do not allow a user to vote
       if(hasVoted) {
@@ -103,22 +91,76 @@ App = {
   },
 
   castVote: function() {
-    console.log("We are in the VOTE SECTION")
-    var candidateId = $('#candidatesSelect').val();
-    App.contracts.Election.deployed().then(function(instance) {
-      console.log("ya le metimos el CONTRATO")
-      return instance.vote(candidateId, { from: App.account });
-    }).then(function(result) {
-      // Wait for votes to update
-      $("#content").hide();
-      console.log("Aqui se deberia mostrar el final: ")
-      $("#loader").show();
-      $("#content").show();
-    }).catch(function(err) {
-      console.error(err);
-    });
-  }
+    var candidateId = $('#candidatesSelect').val();   
+    console.log("Starting the vote") 
+    recordVote(capturedFile, candidateId)
+  },
 };
+
+ function captureFile(){
+  file = document.getElementById("my_file").files[0];  
+  var reader = new FileReader();
+  reader.onload = function() {
+   capturedFile = reader.result
+ }
+ reader.readAsArrayBuffer(file);
+}
+
+async function recordVote (file, candidateId) {  
+  console.log("Are we recording the vote???")
+  
+  // With infura
+  const ipfs = window.IpfsHttpClient({ host: 'ipfs.infura.io', port: 5001, protocol: 'https' })
+  console.log ("Is IPFS ready?" + ipfs)
+  var ipfsHash
+  
+  // ipfs.add(file, (error, result) => {
+  //     ipfsHash = result[0].hash;
+  //     console.log("Your vote is about to be effected with this hash " + ipfsHash)
+  //     App.contracts.Election.deployed().then(function(instance) {
+  //       return instance.vote(candidateId, ipfsHash, { from: App.account });
+  //     }).then(function(result) {
+  //       // Wait for votes to update
+  //       $("#content").hide();
+  //       $("#loader").show();        
+  //       $("#content").show();
+  //       $("#finalMessage").html("Your vote is very important for democracy"); 
+  //       var img = document.createElement('img'); 
+  //       img.src =  "https://ipfs.infura.io/ipfs/"+ipfsHash
+  //       document.getElementById('content').appendChild(img);      
+
+  //     }).catch(function(err) {
+  //       console.error(err);
+  //     });
+  //   if(error) {
+  //     console.error(error)
+  //     return
+  //   }
+  // })
+
+  // ---- without infura: INfura server had a problem so this is the old version of the contract
+
+  App.contracts.Election.deployed().then(function(instance) {
+    return instance.vote(candidateId, { from: App.account });
+  }).then(function(result) {
+    // Wait for votes to update
+    $("#content").hide();
+    $("#loader").show();        
+    $("#content").show();
+    $("#finalMessage").html("Your vote is very important for democracy"); 
+    var img = document.createElement('img'); 
+    img.src =  "https://ipfs.infura.io/ipfs/"+ipfsHash
+    document.getElementById('content').appendChild(img);      
+
+  }).catch(function(err) {
+    console.error(err);
+  });
+// if(error) {
+//   console.error("Check because you have an error")
+//   return
+// }
+
+}
 
 $(function() {
   $(window).load(function() {
